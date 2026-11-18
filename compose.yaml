@@ -15,6 +15,7 @@ services:
     environment:
       RALLY_HOST: ${RALLY_HOST:?set RALLY_HOST in .env}
       STATS_HOST: ${STATS_HOST:?set STATS_HOST in .env}
+      MONITOR_HOST: ${MONITOR_HOST:?set MONITOR_HOST in .env}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       # Keeps HTTPS certificates across restarts and redeploys.
@@ -23,6 +24,7 @@ services:
     depends_on:
       - rally-web
       - goatcounter
+      - beszel
 
   # Rally Point: built on this server from the app repo checked out next to this one.
   rally-web:
@@ -45,6 +47,44 @@ services:
     volumes:
       # The SQLite database lives here.
       - goatcounter_data:/home/goatcounter/goatcounter-data
+
+  # Beszel: server monitoring. Hub (web UI) behind Caddy at MONITOR_HOST, plus a local agent.
+  # Data stays in bind-mounted folders under BESZEL_DIR (default ../beszel), so the hub's
+  # identity key and history survive moving or recreating this stack.
+  beszel:
+    image: henrygd/beszel:latest
+    container_name: beszel
+    restart: unless-stopped
+    environment:
+      APP_URL: https://${MONITOR_HOST:?set MONITOR_HOST in .env}
+    ports:
+      # Loopback only, for an SSH tunnel (ssh -L 8090:127.0.0.1:8090 <vps>); the public path is Caddy.
+      - "127.0.0.1:8090:8090"
+    volumes:
+      - ${BESZEL_DIR:-../beszel}/beszel_data:/beszel_data
+      - ${BESZEL_DIR:-../beszel}/beszel_socket:/beszel_socket
+
+  beszel-agent:
+    image: henrygd/beszel-agent:latest
+    container_name: beszel-agent
+    restart: unless-stopped
+    # Host networking so it sees the real network interfaces; it talks to the hub over a unix socket.
+    network_mode: host
+    # Docker's default AppArmor profile blocks D-Bus calls to systemd (needed for service stats).
+    # Low extra risk: the agent already has the Docker socket, which is root-equivalent.
+    security_opt:
+      - apparmor:unconfined
+    environment:
+      LISTEN: /beszel_socket/beszel.sock
+      # The hub's public key (Beszel UI > Add system). Not a secret, but it lives in .env.
+      KEY: ${BESZEL_HUB_PUBLIC_KEY:?set BESZEL_HUB_PUBLIC_KEY in .env}
+    volumes:
+      - ${BESZEL_DIR:-../beszel}/beszel_agent_data:/var/lib/beszel-agent
+      - ${BESZEL_DIR:-../beszel}/beszel_socket:/beszel_socket
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # systemd service stats (read-only).
+      - /var/run/dbus/system_bus_socket:/var/run/dbus/system_bus_socket:ro
+      - /var/run/systemd/private:/var/run/systemd/private:ro
 
 volumes:
   caddy_data:

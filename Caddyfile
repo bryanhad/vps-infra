@@ -10,3 +10,8 @@
 	# GoatCounter, started with -listen :8080 in compose.yaml.
 	reverse_proxy goatcounter:8080
 }
+
+{$MONITOR_HOST} {
+	# Beszel hub (web UI). Protected by Beszel's own login.
+	reverse_proxy beszel:8090
+}
