@@ -1,0 +1,12 @@
+# One block per hostname. Caddy gets and renews the HTTPS certificate for each.
+# DNS for every hostname must point at this server.
+
+{$RALLY_HOST} {
+	# rally-web's Go server listens on 8080 (PORT in the app repo) and compresses itself.
+	reverse_proxy rally-web:8080
+}
+
+{$STATS_HOST} {
+	# GoatCounter, started with -listen :8080 in compose.yaml.
+	reverse_proxy goatcounter:8080
+}

@@ -1,0 +1,50 @@
+# Everything that runs on the VPS. Only Caddy publishes ports; the other
+# services are reachable from Caddy by service name on the default network
+# that compose creates for this file.
+#
+#   docker compose up -d --build        start / update everything
+#   docker compose up -d --build rally-web   rebuild and restart only the app
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      RALLY_HOST: ${RALLY_HOST:?set RALLY_HOST in .env}
+      STATS_HOST: ${STATS_HOST:?set STATS_HOST in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Keeps HTTPS certificates across restarts and redeploys.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - rally-web
+      - goatcounter
+
+  # Rally Point: built on this server from the app repo checked out next to this one.
+  rally-web:
+    build:
+      context: ${RALLY_POINT_DIR:-../rally-point}
+      args:
+        # Baked into the frontend at build time: where it reports page views.
+        VITE_GOATCOUNTER_URL: https://${STATS_HOST:?set STATS_HOST in .env}/count
+    image: rally-point-web
+    restart: unless-stopped
+    # No ports: the Go server listens on 8080 inside the network (see Caddyfile).
+
+  goatcounter:
+    image: arp242/goatcounter:2.7
+    restart: unless-stopped
+    # Plain HTTP on 8080 inside the network; Caddy does the HTTPS.
+    command: ["serve", "-automigrate", "-listen", ":8080", "-tls", "http"]
+    volumes:
+      # The SQLite database lives here.
+      - goatcounter_data:/home/goatcounter/goatcounter-data
+
+volumes:
+  caddy_data:
+  caddy_config:
+  goatcounter_data:
