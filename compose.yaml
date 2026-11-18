@@ -2,8 +2,8 @@
 # services are reachable from Caddy by service name on the default network
 # that compose creates for this file.
 #
-#   docker compose up -d --build        start / update everything
-#   docker compose up -d --build rally-web   rebuild and restart only the app
+#   make up                start / update everything (also stamps the app's version)
+#   make up SERVICE=rally-web    rebuild and restart only the app
 services:
   caddy:
     image: caddy:2-alpine
@@ -31,6 +31,8 @@ services:
       args:
         # Baked into the frontend at build time: where it reports page views.
         VITE_GOATCOUNTER_URL: https://${STATS_HOST:?set STATS_HOST in .env}/count
+        # Backend version, from git. `make up` fills this in.
+        BACKEND_VERSION: ${BACKEND_VERSION:-dev}
     image: rally-point-web
     restart: unless-stopped
     # No ports: the Go server listens on 8080 inside the network (see Caddyfile).

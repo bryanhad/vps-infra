@@ -18,7 +18,7 @@ Only `caddy` publishes ports. The other services are reached by service name on 
    ```
 2. Point DNS records for both hostnames at the VPS.
 3. `cp .env.example .env` and set `RALLY_HOST` and `STATS_HOST`.
-4. Start everything: `docker compose up -d --build`
+4. Start everything: `make up`
 5. Create the GoatCounter site and login (asks for a password interactively):
    ```
    docker compose run --rm goatcounter db create site -createdb \
@@ -31,14 +31,16 @@ Only `caddy` publishes ports. The other services are reached by service name on 
 
 ```
 cd ~/apps/rally-point && git pull
-cd ~/apps/vps-infra && docker compose up -d --build rally-web
+cd ~/apps/vps-infra && make up SERVICE=rally-web
 ```
+
+`make up` asks git (in `rally-point`) for the backend's version and passes it to the build, so `https://<RALLY_HOST>/api/version` reports what is deployed (for example `1.0.0`, or `1.0.0-3-gabc1234` when it is 3 commits past the tag). Plain `docker compose up --build` also works, but then the version shows as `dev`. To give the backend a release number, tag it in the `rally-point` repo: `git tag backend/v1.0.0 && git push origin backend/v1.0.0`.
 
 ## Adding another app
 
 1. Add a service to `compose.yaml` (no `ports`).
 2. Add a block to `Caddyfile` with `reverse_proxy <service>:<port>`, and a `*_HOST` variable in `.env` / `.env.example` / the caddy `environment`.
-3. Add the DNS record, then `docker compose up -d --build`.
+3. Add the DNS record, then `make up`.
 
 ## Backups
 
